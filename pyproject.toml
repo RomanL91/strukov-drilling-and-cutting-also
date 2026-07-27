@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "strukov-drilling-and-cutting-also"
 version = "0.1.0"
-description = ""
+description = "Передача производственных заданий из МойСклад на линию сверления и отреза"
 authors = ["Егор <despadino@gmail.com>"]
 readme = "README.md"
 package-mode = false
@@ -13,6 +13,25 @@ pydantic-settings = "^2.13.1"
 aiohttp = "^3.13.5"
 flet = { version = "^0.86.3", extras = ["all"] }
 
+
+# Метаданные сборки Flet.
+# Без них имя приложения берётся из имени каталога проекта, поэтому
+# локальная сборка и сборка в CI могли бы дать разный результат.
+[tool.flet]
+artifact = "StrukovDrilling"
+product = "Струков — сверление и резка"
+company = "Струков"
+copyright = "© Струков"
+org = "ru.strukov"
+bundle_id = "ru.strukov.drilling"
+
+[tool.flet.app]
+module = "main"
+
+# Приложение ходит в МойСклад и на станок по сети — без этого права
+# macOS молча блокирует все исходящие соединения.
+[tool.flet.macos.entitlement]
+"com.apple.security.network.client" = true
 
 [build-system]
 requires = ["poetry-core"]

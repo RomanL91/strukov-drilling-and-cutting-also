@@ -15,10 +15,10 @@ dev:
 build-windows:
 	poetry run flet build windows
 
-# Сборка .app (запускать только на macOS)
+# Сборка .app (запускать только на macOS).
+# Права доступа и метаданные берутся из [tool.flet] в pyproject.toml.
 build-macos:
-	poetry run flet build macos \
-		--macos-entitlements com.apple.security.network.client=true
+	poetry run flet build macos --yes
 
 clean:
 	poetry run flet clean
