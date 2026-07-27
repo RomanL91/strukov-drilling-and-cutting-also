@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "strukov-drilling-and-cutting-also"
+version = "0.1.0"
+description = ""
+authors = ["Егор <despadino@gmail.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+pydantic = "^2.12.5"
+pydantic-settings = "^2.13.1"
+aiohttp = "^3.13.5"
+flet = { version = "^0.86.3", extras = ["all"] }
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
