@@ -6,10 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       arch:
-        description: "Архитектура: universal (arm64 + x86_64) или только arm64"
+        description: "Архитектура бандла"
         type: choice
         default: universal
-        options: [universal, arm64]
+        options:
+          - universal # arm64 + x86_64, работает на любом маке
+          - arm64 # только Apple Silicon, собирается быстрее
+          - x64 # только Intel
   push:
     tags: ["v*"]
     branches: [main]
@@ -80,10 +83,21 @@ jobs:
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Версия сборки: ${VERSION}"
 
+      # Для macOS flet принимает только arm64 и x64. Слова "universal" он не
+      # знает и проверку архитектур делает лишь для Android, поэтому неверное
+      # значение молча доходит до сборщика и падает с "No arch directories
+      # found". Универсальный бандл получается, когда флаг не передан вовсе.
       - name: Собрать .app
         run: |
-          poetry run flet build macos \
-            --arch ${{ github.event.inputs.arch || 'universal' }} \
+          ARCH="${{ github.event.inputs.arch || 'universal' }}"
+          if [ "$ARCH" = "universal" ]; then
+            ARCH_ARGS=""
+          else
+            ARCH_ARGS="--arch $ARCH"
+          fi
+          echo "Архитектура: $ARCH (аргументы: ${ARCH_ARGS:-по умолчанию})"
+
+          poetry run flet build macos $ARCH_ARGS \
             --build-version "${{ steps.version.outputs.value }}" \
             --build-number "${GITHUB_RUN_NUMBER}" \
             --verbose \
