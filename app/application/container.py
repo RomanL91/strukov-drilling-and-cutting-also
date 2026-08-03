@@ -18,6 +18,7 @@ from app.infrastructure.machine.protocol import (
     ValueEncoder,
 )
 from app.infrastructure.machine.status import MachineStatusParser
+from app.infrastructure.machine.transport import RawHttpTransport
 from app.infrastructure.moysklad.attributes import AttributeProfileExtractor
 from app.infrastructure.moysklad.client import MoySkladClient
 from app.infrastructure.moysklad.mapper import ProductionTaskMapper
@@ -104,6 +105,9 @@ class ServiceContainer:
     def machine_gateway(self) -> AlsoMachineGateway:
         """Создаёт шлюз к оборудованию.
 
+        Станок получает собственный транспорт: его веб-сервер отвечает не по
+        букве HTTP, и общая сессия aiohttp такой ответ не разбирает.
+
         Returns:
             Шлюз к линии сверления и отреза.
 
@@ -114,7 +118,7 @@ class ServiceContainer:
             raise ConfigError("Не задан адрес станка — откройте «Настройки»")
 
         return AlsoMachineGateway(
-            self._http,
+            RawHttpTransport(),
             base_url=self._config.machine_base_url,
             parser=MachineStatusParser(),
             timeout=self._config.request_timeout,

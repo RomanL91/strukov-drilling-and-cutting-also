@@ -5,14 +5,12 @@
 описанная в разделе 5 документации) — это другая реализация `MachineGateway`.
 """
 
-from yarl import URL
-
 from app.core.logger import logger
 from app.domain.errors import MachineError
 from app.domain.models import MachinePacket, MachineStatus
-from app.infrastructure.http.client import HttpClient
 from app.infrastructure.machine.protocol import status_request_url
 from app.infrastructure.machine.status import COMMAND_TITLES, MachineStatusParser
+from app.infrastructure.machine.transport import RawHttpTransport
 
 
 class AlsoMachineGateway:
@@ -20,7 +18,7 @@ class AlsoMachineGateway:
 
     def __init__(
         self,
-        http: HttpClient,
+        transport: RawHttpTransport,
         base_url: str,
         parser: MachineStatusParser,
         timeout: float = 30.0,
@@ -28,12 +26,12 @@ class AlsoMachineGateway:
         """Создаёт шлюз для конкретного адреса оборудования.
 
         Args:
-            http: Общий HTTP-транспорт приложения.
+            transport: Транспорт для обмена со станком.
             base_url: Базовый адрес станка.
             parser: Разборщик ответа оборудования.
             timeout: Таймаут запроса в секундах.
         """
-        self._http = http
+        self._transport = transport
         self._base_url = base_url.rstrip("/")
         self._parser = parser
         self._timeout = timeout
@@ -86,7 +84,7 @@ class AlsoMachineGateway:
         """Выполняет запрос к оборудованию и разбирает ответ.
 
         Адрес передаётся уже собранным: фигурные скобки и кавычки формата
-        должны уйти как есть, поэтому переэкранирование в yarl отключено.
+        должны уйти как есть, поэтому запрос собирает сырой транспорт.
 
         Args:
             url: Готовый адрес запроса.
@@ -99,19 +97,17 @@ class AlsoMachineGateway:
             MachineError: Оборудование недоступно или вернуло код ошибки.
         """
         try:
-            response = await self._http.get(
-                URL(url, encoded=True),
-                timeout=timeout or self._timeout,
-                as_text=True,
-            )
+            response = await self._transport.get(url, timeout=timeout or self._timeout)
         except ConnectionError as error:
             raise MachineError(
                 f"Станок недоступен по адресу {self._base_url}: {error}"
             ) from error
+        except ValueError as error:
+            raise MachineError(f"Неверный адрес станка: {error}") from error
 
         if not response.is_success:
             raise MachineError(f"Станок ответил HTTP {response.status}")
 
-        status = self._parser.parse(response.as_text)
+        status = self._parser.parse(response.text)
         logger.info(f"Ответ станка: {status.summary} | сырой: {status.raw[:200]}")
         return status

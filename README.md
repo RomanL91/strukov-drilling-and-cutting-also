@@ -53,6 +53,22 @@
 - **Кириллица и спецсимволы** (`#`, `%`, `'`, `*`, `^`, пробел) кодируются в
   URL по приложению А документа. Символы вне поддерживаемого набора
   отбрасываются с предупреждением — иначе панель выдаёт ошибку 67/77.
+- **Со станком общается свой транспорт** (`RawHttpTransport`), а не общая
+  сессия aiohttp: веб-сервер S7-1200 отдаёт страницу, длина которой не сходится
+  с заголовком `Content-Length`. Строгий разборщик дочитывает тело по заголовку,
+  принимает хвост `</html>` за начало следующего ответа и падает с
+  «Bad status line»; браузер ту же страницу показывает без нареканий. Транспорт
+  повторяет снисходительность браузера: шлёт строку запроса байт в байт как в
+  документации и читает ответ до конца страницы.
+
+Проверить связь со станком без интерфейса:
+
+```bash
+poetry run python -m app.tools.probe_machine http://192.168.0.100:8080
+```
+
+Утилита печатает сырой ответ целиком — по нему видно, отвечает ли оборудование
+и что именно оно прислало.
 
 Сетевые требования из документа: оборудование `192.168.0.100`, маска
 `255.255.0.0`, порт `8080`; управляющий компьютер должен иметь адрес
@@ -90,13 +106,46 @@ API, IP и порт станка, таймаут запросов, размер 
 ## Сборка
 
 ```bash
-make build-windows    # .exe, запускать на Windows
+make build-windows    # .exe нативным бандлом Flutter, запускать на Windows
+make pack-windows     # .exe одним файлом через PyInstaller, без Visual Studio
 make build-macos      # .app, запускать только на macOS
 ```
 
 Метаданные сборки (имя, идентификатор бандла, права доступа) заданы в
 `pyproject.toml`, секция `[tool.flet]` — локальная сборка и сборка в CI дают
 одинаковый результат.
+
+### Про Windows
+
+`flet build windows` собирает бандл силами Flutter, а тому нужен C++-тулчейн
+Visual Studio. Сам Flutter флет ставит молча в `~/flutter/<версия>`, но
+Visual Studio — нет, и сборка падает на `Unable to find suitable Visual Studio
+toolchain`. Достаточно Build Tools 2022 с workload `VCTools` (полная Visual
+Studio не требуется — flutter принимает оба workload'а):
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools `
+  --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Если ставить Visual Studio незачем, есть `make pack-windows` (или та же команда
+напрямую — `make` под Windows обычно не установлен):
+
+```powershell
+poetry run flet pack main.py --name StrukovDrilling `
+  --product-name "Струков — сверление и резка" `
+  --file-description "Передача производственных заданий на линию сверления и отреза" `
+  --company-name "Струков" --copyright "© Струков" `
+  --product-version 0.1.0 --file-version 0.1.0.0 --yes
+```
+
+PyInstaller
+складывает всё в один `dist\StrukovDrilling.exe` (~60 МБ). Скомпилированный
+flet-клиент (`flet_desktop/app/flet-windows.zip`) вкладывается внутрь, поэтому
+на машине участка ничего доустанавливать не нужно: exe при первом запуске
+распаковывает клиент в `%USERPROFILE%\.flet\client\`. Отличия от нативной
+сборки: exe крупнее и стартует чуть дольше, метаданные передаются флагами, а не
+берутся из `[tool.flet]`, и антивирусы к PyInstaller относятся настороженнее.
 
 ### Про macOS
 
@@ -166,7 +215,8 @@ app/application/container.py            композиционный корен�
 
 app/infrastructure/http/                транспорт и политика повторов
 app/infrastructure/moysklad/            клиент, преобразователь, репозиторий, разбор атрибутов
-app/infrastructure/machine/             ограничения iPAP2, кодировщик, сборщик, шлюз
+app/infrastructure/machine/             ограничения iPAP2, кодировщик, сборщик, шлюз, сырой транспорт
+app/tools/probe_machine.py              проверка связи со станком из командной строки
 
 app/ui/base_view.py                     общая схема выполнения операций
 app/ui/                                 экраны: список, задание, настройки
@@ -197,6 +247,7 @@ app/ui/                                 экраны: список, задани
 | Репозиторий | `MoySkladTaskRepository` | Скрывает пути API и пагинацию |
 | Преобразователь данных | `ProductionTaskMapper` | Знание о формате JSON в одном месте |
 | Шлюз | `AlsoMachineGateway` | Сценарии не знают про HTTP и формат ответа |
+| Адаптер | `RawHttpTransport` | Ответ станка не по букве HTTP разбирается вручную |
 | Строитель | `AlsoPacketBuilder` | Пошаговая сборка адреса пакета |
 | Фасад | `ProductionService` | Четыре операции для интерфейса |
 | Фабрика | `ServiceContainer` | Единственное место связывания зависимостей |

@@ -36,3 +36,8 @@ module = "main"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pyinstaller (>=6.21.0,<7.0.0) ; python_version >= \"3.11\" and python_version < \"3.16\""
+]

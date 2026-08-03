@@ -15,7 +15,9 @@ from app.core.logger import logger
 
 T = TypeVar("T")
 
-RETRIABLE_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError)
+# OSError покрывает сырой транспорт станка: обрыв соединения и отказ в нём
+# приходят оттуда системными ошибками, а не исключениями aiohttp.
+RETRIABLE_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,8 @@ class RetryPolicy:
             return "Превышено время ожидания ответа"
         if isinstance(error, aiohttp.ClientConnectorError):
             return f"Не удалось подключиться: {error.os_error}"
+        if isinstance(error, OSError):
+            return f"Не удалось подключиться: {error.strerror or error}"
         if error is not None:
             return f"Ошибка сети: {error}"
         return "Ошибка сети"
