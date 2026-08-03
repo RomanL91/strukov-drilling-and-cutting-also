@@ -114,24 +114,32 @@ class TasksView(BaseView):
             await self.load()
 
     async def load(self) -> None:
-        """Загружает текущую страницу списка и перерисовывает её."""
+        """Загружает текущую страницу списка и перерисовывает её.
+
+        Список заполняется внутри операции, а не после неё: перерисовку на
+        экран отправляет `run_action` своим последним `page.update()`, и он же
+        сверяется с `_current`, когда решает, доступны ли кнопки листания.
+        """
         service = self._service_factory()
         query = TaskQuery(search=self._search, offset=self._offset, limit=self._page_size)
 
+        async def load_and_render() -> TaskPage:
+            """Загружает страницу и сразу заполняет список."""
+            page = await service.list_tasks(query)
+            self._current = page
+            self.loaded = True
+            self._render(page)
+            return page
+
+        self._current = None
+        self.range_label.value = ""
         self.list_view.controls.clear()
-        page = await self.run_action(
-            action=lambda: service.list_tasks(query),
+
+        await self.run_action(
+            action=load_and_render,
             busy_message="Загрузка заданий…",
             failure_message="Не удалось загрузить список заданий",
         )
-
-        self._current = page
-        if page is None:
-            self.range_label.value = ""
-            return
-
-        self.loaded = True
-        self._render(page)
 
     def set_page_size(self, page_size: int) -> None:
         """Задаёт размер страницы из настроек.
