@@ -105,9 +105,13 @@ API, IP и порт станка, таймаут запросов, размер 
 
 ## Сборка
 
+```powershell
+.\build-windows.ps1   # .exe одним файлом через PyInstaller, без Visual Studio
+```
+
 ```bash
 make build-windows    # .exe нативным бандлом Flutter, запускать на Windows
-make pack-windows     # .exe одним файлом через PyInstaller, без Visual Studio
+make pack-windows     # то же, что build-windows.ps1, если make установлен
 make build-macos      # .app, запускать только на macOS
 ```
 
@@ -128,16 +132,22 @@ winget install --id Microsoft.VisualStudio.2022.BuildTools `
   --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 ```
 
-Если ставить Visual Studio незачем, есть `make pack-windows` (или та же команда
-напрямую — `make` под Windows обычно не установлен):
+Если ставить Visual Studio незачем, есть `build-windows.ps1` — под Windows
+`make` обычно не установлен, поэтому сборка вынесена в скрипт:
 
 ```powershell
-poetry run flet pack main.py --name StrukovDrilling `
-  --product-name "Струков — сверление и резка" `
-  --file-description "Передача производственных заданий на линию сверления и отреза" `
-  --company-name "Струков" --copyright "© Струков" `
-  --product-version 0.1.0 --file-version 0.1.0.0 --yes
+.\build-windows.ps1                    # dist\StrukovDrilling.exe, PyInstaller
+.\build-windows.ps1 -Mode native       # бандл Flutter, нужна Visual Studio
+.\build-windows.ps1 -Clean             # с удалением build и dist
+.\build-windows.ps1 -DryRun            # показать команду, ничего не запуская
 ```
+
+Версию скрипт берёт из `poetry version`, метаданные — из `[tool.flet]`
+в `pyproject.toml`, так что в трёх местах их править не приходится.
+PyInstaller ставится сам, если его нет. Сборка занимает около минуты.
+
+Скрипт сохранён в UTF-8 **с BOM**: Windows PowerShell 5.1 читает `.ps1` без BOM
+как ANSI и спотыкается о кириллицу в строках.
 
 PyInstaller
 складывает всё в один `dist\StrukovDrilling.exe` (~60 МБ). Скомпилированный
