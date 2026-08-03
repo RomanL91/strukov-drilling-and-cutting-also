@@ -5,8 +5,9 @@ from typing import Callable, List, Optional, Sequence
 import flet as ft
 
 from app.application.production_service import ProductionService
+from app.core.logger import logger
 from app.domain.models import Job, ProductionTask
-from app.infrastructure.machine.protocol import ProtocolLimits
+from app.infrastructure.machine.protocol import ProtocolLimits, browser_url
 from app.ui.base_view import BaseView
 from app.ui.common import (
     bullet_list,
@@ -45,6 +46,9 @@ class JobView(BaseView):
         self._limits = limits
         self._on_back = on_back
         self._job: Optional[Job] = None
+        # Служба создаётся при первом обращении и переиспользуется: страница
+        # складывает службы в общий список и не убирает их оттуда.
+        self._url_launcher: Optional[ft.UrlLauncher] = None
 
         self.header = title("")
         self.subheader = caption("")
@@ -282,16 +286,38 @@ class JobView(BaseView):
         )
 
     async def _handle_copy(self, event: ft.Event) -> None:
-        """Копирует адрес пакета в буфер обмена."""
-        if self._job:
-            self.page.clipboard.set(self._job.url)
+        """Копирует адрес пакета в буфер обмена.
+
+        Работа с буфером асинхронная: без `await` корутина не выполняется, и
+        сообщение об успехе появляется при пустом буфере.
+        """
+        if self._job is None:
+            return
+
+        try:
+            await self.page.clipboard.set(self._job.url)
+        except Exception as error:  # noqa: BLE001 — в интерфейсе нельзя падать молча
+            logger.exception("Не удалось скопировать адрес в буфер обмена")
+            self.status.error(f"Не удалось скопировать адрес: {error}")
+        else:
             self.status.success("URL скопирован в буфер обмена")
-            self.page.update()
+
+        self.page.update()
 
     async def _handle_open(self, event: ft.Event) -> None:
         """Открывает адрес пакета в браузере."""
-        if self._job:
-            self.page.launch_url(self._job.url)
+        if self._job is None:
+            return
+
+        if self._url_launcher is None:
+            self._url_launcher = ft.UrlLauncher()
+
+        try:
+            await self._url_launcher.launch_url(browser_url(self._job.url))
+        except Exception as error:  # noqa: BLE001 — в интерфейсе нельзя падать молча
+            logger.exception("Не удалось открыть адрес в браузере")
+            self.status.error(f"Не удалось открыть браузер: {error}")
+            self.page.update()
 
     async def _handle_send_click(self, event: ft.Event) -> None:
         """Спрашивает подтверждение перед отправкой на станок."""

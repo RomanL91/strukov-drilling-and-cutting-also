@@ -140,15 +140,24 @@ if ($DryRun) {
 }
 
 $started = Get-Date
+
+# PyInstaller пишет обычные сообщения в stderr. При $ErrorActionPreference = "Stop"
+# и перенаправленном выводе (например, `.\build-windows.ps1 > log.txt 2>&1`)
+# PowerShell 5.1 считает такую строку ошибкой и обрывает сборку на первой же.
+$previousPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & poetry @arguments
-if ($LASTEXITCODE -ne 0) {
+$exitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousPreference
+
+if ($exitCode -ne 0) {
     if ($Mode -eq "native") {
         Write-Host ""
         Write-Host "Нативная сборка требует C++-тулчейн Visual Studio:" -ForegroundColor Yellow
         Write-Host '  winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"'
         Write-Host "Без него используйте режим pack (по умолчанию)." -ForegroundColor Yellow
     }
-    throw "Сборка не удалась — код возврата $LASTEXITCODE"
+    throw "Сборка не удалась — код возврата $exitCode"
 }
 
 $elapsed = (Get-Date) - $started
